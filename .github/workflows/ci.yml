@@ -13,6 +13,16 @@ on:
     branches: [main]
 
 jobs:
+  host-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run host tests
+        run: |
+          cmake -S test/host -B test/host/build
+          cmake --build test/host/build
+          test/host/build/host_test
+
   build-example:
     runs-on: ubuntu-latest
     strategy:
