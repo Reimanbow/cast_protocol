@@ -5,7 +5,7 @@ TARGET := env("TARGET", "esp32s3")
 PORT := env("PORT", "/dev/ttyUSB0")
 
 # Versions and targets to test
-IDF_VERSIONS := env("IDF_VERSIONS", "v5.0 v5.4")
+IDF_VERSIONS := env("IDF_VERSIONS", "v5.4")
 TARGETS := env("TARGETS", "esp32s3")
 
 COMPONENT_NAME := env("COMPONENT_NAME", "cast_protocol")

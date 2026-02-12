@@ -7,4 +7,4 @@ targets:
   - esp32s3
 dependencies:
   idf:
-    version: ">=5.0.0"
+    version: ">=5.4.0"
