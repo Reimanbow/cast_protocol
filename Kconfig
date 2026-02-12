@@ -1,0 +1,9 @@
+menu "Cast Protocol"
+
+    config CAST_PROTOCOL_ENABLE_LOG
+        bool "Enable detailed logging"
+        default n
+        help
+            Enable detailed logging for the cast protocol.
+
+endmenu

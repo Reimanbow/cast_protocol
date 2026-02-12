@@ -1,0 +1,10 @@
+version: "0.1.0"
+description: "Cast protocol component for ESP32-S3"
+url: "https://github.com/YOUR_USERNAME/cast_protocol"
+repository: "https://github.com/YOUR_USERNAME/cast_protocol.git"
+issues: "https://github.com/YOUR_USERNAME/cast_protocol/issues"
+targets:
+  - esp32s3
+dependencies:
+  idf:
+    version: ">=5.0.0"
