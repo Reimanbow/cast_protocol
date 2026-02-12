@@ -1,4 +1,0 @@
-dependencies:
-  cast_protocol:
-    version: "*"
-    override_path: "../../../"
