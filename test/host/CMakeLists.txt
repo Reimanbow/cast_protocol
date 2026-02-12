@@ -14,16 +14,17 @@ FetchContent_MakeAvailable(googletest)
 
 # Component source (compiled as C)
 add_library(component STATIC
-    ../../src/cast_protocol.c
+    ../../src/cast_chunker.c
 )
 target_include_directories(component PUBLIC
     ../../include
+    ../../src
     mocks
 )
 
 # Test executable
 add_executable(host_test
-    test_cast_protocol.cpp
+    test_cast_chunker.cpp
 )
 target_link_libraries(host_test PRIVATE component GTest::gtest_main)
 

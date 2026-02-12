@@ -13,24 +13,15 @@ on:
     branches: [main]
 
 jobs:
-  build-example:
+  host-test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        idf_version:
-          - "v5.4"
-        target:
-          - esp32s3
-    container:
-      image: espressif/idf:${{ matrix.idf_version }}
     steps:
       - uses: actions/checkout@v4
-      - name: Build example
-        working-directory: examples/basic
+      - name: Run host tests
         run: |
-          . $IDF_PATH/export.sh
-          idf.py set-target ${{ matrix.target }}
-          idf.py build
+          cmake -S test/host -B test/host/build
+          cmake --build test/host/build
+          test/host/build/host_test
 
   build-test:
     runs-on: ubuntu-latest

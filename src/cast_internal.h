@@ -5,6 +5,7 @@
 #define CAST_INTERNAL_H
 
 #include <stdint.h>
+#include "cast_protocol.h"
 
 #define CAST_MAGIC_BYTE 0xCA // CASTプロトコルの識別用
 
@@ -17,16 +18,6 @@ typedef enum {
     CAST_PKT_TYPE_NACK  = 2,    // 再送要求
     CAST_PKT_TYPE_CTRL  = 3     // 戦略変更命令
 } cast_packet_type_t;
-
-/**
- * @brief 送信する画像のフォーマット情報
- */
-typedef enum {
-    CAST_FMT_JPEG       = 0,
-    CAST_FMT_RGB565     = 1,
-    CAST_FMT_GRAYSCALE  = 2,
-    CAST_FMT_NONE       = 255   // 制御パケット用
-} cast_image_format_t;
 
 /**
  * @brief CASTプロトコル共通ヘッダ (11バイト)
