@@ -40,6 +40,27 @@ esp_err_t cast_send_frame(
     cast_transport_interface_t *transport
 );
 
+/**
+ * @brief 画像が完成したときに呼ばれる関数の型
+ * @note dataはcallbackから戻った後にミドルウェアが解放する。保持する場合はコピーすること。
+ */
+typedef void (*cast_on_frame_ready_t)(const uint8_t *data, size_t len, cast_image_format_t fmt);
+
+/**
+ * @brief 受信側の初期化
+ * transportのrecvコールバックを登録し、受信したパケットをreassemblerに渡す
+ * @param transport トランスポートインタフェース
+ * @param callback フレーム完成時に呼ばれるコールバック
+ * @return esp_err_t ESP_OK on success
+ */
+esp_err_t cast_init_receiver(cast_transport_interface_t *transport, cast_on_frame_ready_t callback);
+
+/**
+ * @brief 受信中のフレーム組み立てをリセットする
+ * 途中のフレームを破棄してバッファを解放する
+ */
+void cast_reassembler_reset(void);
+
 #ifdef __cplusplus
 }
 #endif

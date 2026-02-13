@@ -46,10 +46,10 @@ esp_err_t cast_send_frame(
 
         // 3. トレーラ(CRC)の付与(今は0固定)
         uint16_t crc = 0;
-        memcpy(packet_buf + sizeof(cast_header_t) + current_payload_len, &crc, 2);
+        memcpy(packet_buf + sizeof(cast_header_t) + current_payload_len, &crc, CAST_CRC_SIZE);
 
         // 4. 送信
-        size_t total_packet_len = sizeof(cast_header_t) + current_payload_len + 2;
+        size_t total_packet_len = sizeof(cast_header_t) + current_payload_len + CAST_CRC_SIZE;
         esp_err_t err = transport->send(packet_buf, total_packet_len);
 
         if (err != ESP_OK) {
