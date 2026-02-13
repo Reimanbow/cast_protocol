@@ -15,6 +15,7 @@ FetchContent_MakeAvailable(googletest)
 # Component source (compiled as C)
 add_library(component STATIC
     ../../src/cast_chunker.c
+    ../../src/cast_reassembler.c
 )
 target_include_directories(component PUBLIC
     ../../include
@@ -22,9 +23,13 @@ target_include_directories(component PUBLIC
     mocks
 )
 
+# Test data directory
+add_compile_definitions(TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
 # Test executable
 add_executable(host_test
     test_cast_chunker.cpp
+    test_cast_reassembler.cpp
 )
 target_link_libraries(host_test PRIVATE component GTest::gtest_main)
 

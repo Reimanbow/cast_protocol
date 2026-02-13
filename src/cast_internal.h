@@ -20,7 +20,7 @@ typedef enum {
 } cast_packet_type_t;
 
 /**
- * @brief CASTプロトコル共通ヘッダ (11バイト)
+ * @brief CASTプロトコル共通ヘッダ (13バイト)
  * * [フィールド再利用(Overloading)の設計指針]
  * プロトコルの軽量化のため、PacketTypeに応じて以下の通り意味を読み替える。
  * * 1. DATA時: すべてのフィールドを定義通り使用。
@@ -40,11 +40,14 @@ typedef struct {
     uint16_t    frame_id;       // 対象フレームID
     uint16_t    chunk_index;    // チャンク番号、または応答対象のチャンク番号
     uint16_t    total_chunks;   // 総チャンク数、または制御用パラメータ
+    uint16_t    max_payload;    // 送信側が分割に使用した1チャンクの最大サイズ
     uint16_t    payload_len;    // このパケットに含まれるデータ長(DATA以外では通常0)
     /* @note この後に最大MTU-2のサイズとなるまで実際のデータが入る */
 } __attribute__((packed)) cast_header_t;
 
-// CRC(2バイト)を考慮したパケット最大オーバーヘッド
-#define CAST_PROTOCOL_OVERHEAD (sizeof(cast_header_t) + 2)
+#define CAST_CRC_SIZE 2
+
+// CRCを考慮したパケット最大オーバーヘッド
+#define CAST_PROTOCOL_OVERHEAD (sizeof(cast_header_t) + CAST_CRC_SIZE)
 
 #endif /* CAST_INTERNAL_H */
