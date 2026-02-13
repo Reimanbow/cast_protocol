@@ -19,6 +19,7 @@ typedef struct {
     uint16_t chunks_received;   // 到着済みチャンク数
     uint16_t total_chunks;      // 期待される総数
     uint16_t max_payload_ref;   // オフセット計算の基準値
+    uint16_t last_chunk_len;    // 最終チャンクのペイロード長
     cast_image_format_t format; // 画像フォーマット
     bool is_active;
 } cast_reassembler_ctx_t;
@@ -86,11 +87,16 @@ static void cast_reassembler_push_packet(const uint8_t *data, size_t len) {
     if (offset + header->payload_len <= ctx.allocated_size) {
         memcpy(ctx.buffer + offset, payload, header->payload_len);
         ctx.chunks_received++;
+
+        // 最終チャンクの payload_len を記録（順不同対応）
+        if (header->chunk_index == ctx.total_chunks - 1) {
+            ctx.last_chunk_len = header->payload_len;
+        }
     }
 
     if (ctx.chunks_received == ctx.total_chunks) {
         if (app_callback) {
-            size_t final_size = offset + header->payload_len;
+            size_t final_size = (ctx.total_chunks - 1) * ctx.max_payload_ref + ctx.last_chunk_len;
             app_callback(ctx.buffer, final_size, ctx.format);
         }
 
