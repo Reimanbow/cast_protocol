@@ -38,6 +38,7 @@ esp_err_t cast_send_frame(
         header->frame_id = frame_counter;
         header->chunk_index = i;
         header->total_chunks = total_chunks;
+        header->max_payload = (uint16_t)max_payload;
         header->payload_len = (uint16_t)current_payload_len;
         
         // 2. データのコピー(ヘッダの直後へ)
