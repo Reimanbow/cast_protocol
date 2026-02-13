@@ -1,120 +1,77 @@
-# Cast Protocol
+# CAST Protocol
 
-ESP-IDF component for cast protocol (ESP32-S3).
+**CAST (Camera Adaptive Strategy Transmission)** は、ESP32-S3 向けの画像伝送ミドルウェアです。
+カメラで撮影した画像フレームを MTU に合わせてチャンク分割・送信し、受信側で順不同のチャンクを組み立てて元のフレームを復元します。
+
+トランスポート層（ESP-NOW, Wi-Fi など）は抽象化されており、`cast_transport_interface_t` を実装するだけで任意の通信方式に対応できます。
+
+## Features
+
+- 画像フレームの MTU ベース自動分割送信 (Chunker)
+- 順不同チャンクの受信・組み立て (Reassembler)
+- JPEG / RGB565 / Grayscale フォーマット対応
+- トランスポート層の抽象化 (`cast_transport_interface_t`)
+- バッファ管理はミドルウェア側で完結（コールバックで通知）
 
 ## Requirements
 
-- ESP-IDF v5.0 or later
+- ESP-IDF v5.4 or later
+- Target: ESP32-S3
 
-## Installation
+## Packet Structure
 
-Add the dependency to your project's `idf_component.yml`:
-
-```yaml
-dependencies:
-  cast_protocol:
-    version: "*"
+```
++-------+----------+---------+
+| Header (15B) | Payload | CRC (2B) |
++-------+----------+---------+
 ```
 
-Then run:
-
-```bash
-idf.py reconfigure
-```
+ヘッダには magic byte, パケットタイプ, フォーマット, フレームID, チャンク番号, 総チャンク数, 最大ペイロード長, ペイロード長が含まれます。
 
 ## Usage
+
+### Sender (Chunker)
 
 ```c
 #include "cast_protocol.h"
 
-void app_main(void)
-{
-    ESP_ERROR_CHECK(cast_protocol_init());
+// トランスポートインタフェースを実装
+cast_transport_interface_t transport = {
+    .send = my_send,
+    .get_mtu = my_get_mtu,
+    .get_rssi = my_get_rssi,
+    .is_connected = my_is_connected,
+    .is_ready = my_is_ready,
+    .set_recv_callback = my_set_recv_callback,
+};
 
-    // Your application code here
+// フレーム送信
+esp_err_t err = cast_send_frame(jpeg_buf, jpeg_len, CAST_FMT_JPEG, &transport);
+```
 
-    ESP_ERROR_CHECK(cast_protocol_deinit());
+### Receiver (Reassembler)
+
+```c
+#include "cast_protocol.h"
+
+// フレーム完成時のコールバック
+// data はコールバックから戻った後にミドルウェアが解放する
+// 保持する場合はコールバック内でコピーすること
+void on_frame_ready(const uint8_t *data, size_t len, cast_image_format_t fmt) {
+    // data を表示・保存など
 }
+
+// 受信側の初期化
+esp_err_t err = cast_init_receiver(&transport, on_frame_ready);
 ```
 
-## Component Development Guide
+## API
 
-### バージョニング
-
-`idf_component.yml` の `version` はセマンティックバージョニング (`major.minor.patch`) に従います。
-レジストリに公開されたバージョンは**上書き不可**なので、変更するたびにバージョンを上げる必要があります。
-
-依存側で使えるバージョン制約:
-
-| 構文 | 意味 | 例 |
-|---|---|---|
-| `*` | 任意のバージョン | `*` |
-| `>=`, `<` 等 | 比較演算 | `>=1.0.0` |
-| `^` (caret) | 最左の非ゼロ桁を固定 | `^1.2.3` = `>=1.2.3,<2.0.0` |
-| `~` (tilde) | パッチレベルのみ変動 | `~1.2.3` = `>=1.2.3,<1.3.0` |
-
-注意: `^0.x.y` は `>=0.0.0,<1.0.0` ではなく、マイナーバージョンで固定されます (`^0.2.3` = `>=0.2.3,<0.3.0`)。
-
-### 公開に必要なファイル
-
-レジストリへの公開には最低限以下が必要です:
-
-- `idf_component.yml` (`version` フィールド必須)
-- `LICENSE` または `LICENSE.txt`
-- `README.md`
-
-### idf_component.yml の主なフィールド
-
-```yaml
-version: "1.0.0"                    # 必須
-description: "My component"
-license: "MIT"                      # SPDX 識別子
-url: "https://github.com/..."
-repository: "https://github.com/....git"
-targets:                            # 省略すると全ターゲット対応
-  - esp32s3
-dependencies:
-  idf:
-    version: ">=5.0.0"
-  espressif/button:                 # namespace/name 形式
-    version: "^3.0.0"
-```
-
-- `path:` や `git:` による依存は**公開時に使用不可**（ローカル開発専用）
-- `targets` を省略すると全チップ対応として扱われます
-
-### namespace
-
-- レジストリ上のコンポーネントは `namespace/component_name` で識別されます
-- namespace を省略すると `espressif` がデフォルトになります
-- GitHub ログイン時にユーザー名と同名の namespace が自動作成されます
-
-### examples ディレクトリ
-
-- `examples/` 配下の各プロジェクトはレジストリ上で個別にダウンロード可能になります
-- 各 example は**自己完結**している必要があります（example 外のファイルに依存しない）
-- example の `idf_component.yml` では `override_path` でローカル開発時に親コンポーネントを参照します:
-
-```yaml
-dependencies:
-  my_namespace/my_component:
-    version: "*"
-    override_path: "../../"
-```
-
-- example の `CMakeLists.txt` で `EXTRA_COMPONENT_DIRS` を使ってはいけません（レジストリからダウンロードした場合に壊れます）
-
-### 公開方法
-
-```bash
-# パッケージの確認（アップロードせずアーカイブ作成）
-compote component pack --name cast_protocol
-
-# アップロード
-compote component upload --name cast_protocol --namespace my_namespace
-```
-
-CI/CD では環境変数 `IDF_COMPONENT_API_TOKEN` を設定するか、GitHub Actions の OIDC を利用できます。
+| Function | Description |
+|---|---|
+| `cast_send_frame()` | 画像フレームをチャンク分割して送信 |
+| `cast_init_receiver()` | 受信側を初期化しコールバックを登録 |
+| `cast_reassembler_reset()` | 受信中のフレーム組み立てをリセット |
 
 ## License
 
