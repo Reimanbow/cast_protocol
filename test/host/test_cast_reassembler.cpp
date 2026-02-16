@@ -142,7 +142,8 @@ TEST_F(ReassemblerTest, LoopbackExactMtu)
     std::vector<uint8_t> data(max_payload);
     std::iota(data.begin(), data.end(), 0);
 
-    cast_send_frame(data.data(), data.size(), CAST_FMT_RGB565, 320, 240, &g_mock_transport);
+    // JPEG で送信（生データがそのまま返る）
+    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     ASSERT_EQ(g_captured_packets.size(), 1u);
 
     feed_all_packets();
@@ -348,20 +349,21 @@ TEST_F(ReassemblerTest, OutOfBoundsChunkIndexIgnored)
 // 4. アプリ連携系：フォーマット・完了通知テスト
 // ===========================================================================
 
-// 4-1: フォーマット情報の伝搬
+// 4-1: フォーマット情報の伝搬（ヘッダ付与を含む）
 TEST_F(ReassemblerTest, FormatPropagation)
 {
     std::vector<uint8_t> data(50, 0x11);
 
-    // JPEG
+    // JPEG: 生データがそのまま返る
     cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     feed_all_packets();
     ASSERT_EQ(g_completed_frames.size(), 1u);
     EXPECT_EQ(g_completed_frames[0].fmt, CAST_FMT_JPEG);
     EXPECT_EQ(g_completed_frames[0].width, 0);
     EXPECT_EQ(g_completed_frames[0].height, 0);
+    EXPECT_EQ(g_completed_frames[0].data, data); // そのまま
 
-    // RGB565
+    // RGB565: BMP ヘッダ付き
     g_captured_packets.clear();
     g_completed_frames.clear();
     cast_send_frame(data.data(), data.size(), CAST_FMT_RGB565, 320, 240, &g_mock_transport);
@@ -370,8 +372,12 @@ TEST_F(ReassemblerTest, FormatPropagation)
     EXPECT_EQ(g_completed_frames[0].fmt, CAST_FMT_RGB565);
     EXPECT_EQ(g_completed_frames[0].width, 320);
     EXPECT_EQ(g_completed_frames[0].height, 240);
+    // BMP signature "BM"
+    ASSERT_GE(g_completed_frames[0].data.size(), 2u);
+    EXPECT_EQ(g_completed_frames[0].data[0], 'B');
+    EXPECT_EQ(g_completed_frames[0].data[1], 'M');
 
-    // GRAYSCALE
+    // GRAYSCALE: PGM ヘッダ付き
     g_captured_packets.clear();
     g_completed_frames.clear();
     cast_send_frame(data.data(), data.size(), CAST_FMT_GRAYSCALE, 160, 120, &g_mock_transport);
@@ -380,6 +386,94 @@ TEST_F(ReassemblerTest, FormatPropagation)
     EXPECT_EQ(g_completed_frames[0].fmt, CAST_FMT_GRAYSCALE);
     EXPECT_EQ(g_completed_frames[0].width, 160);
     EXPECT_EQ(g_completed_frames[0].height, 120);
+    // PGM signature "P5\n"
+    ASSERT_GE(g_completed_frames[0].data.size(), 3u);
+    EXPECT_EQ(g_completed_frames[0].data[0], 'P');
+    EXPECT_EQ(g_completed_frames[0].data[1], '5');
+    EXPECT_EQ(g_completed_frames[0].data[2], '\n');
+}
+
+// 4-1b: RGB565 → BMP 変換の検証
+TEST_F(ReassemblerTest, BmpHeaderRgb565)
+{
+    // 4x2 の RGB565 画像 = 16 bytes
+    const uint16_t w = 4, h = 2;
+    std::vector<uint8_t> pixels(w * h * 2);
+    std::iota(pixels.begin(), pixels.end(), 0);
+
+    cast_send_frame(pixels.data(), pixels.size(), CAST_FMT_RGB565, w, h, &g_mock_transport);
+    feed_all_packets();
+
+    ASSERT_EQ(g_completed_frames.size(), 1u);
+    auto &frame = g_completed_frames[0];
+
+    // BMP ヘッダサイズ = 66 bytes
+    const size_t BMP_HDR = 66;
+    ASSERT_GE(frame.data.size(), BMP_HDR);
+
+    // BMP signature
+    EXPECT_EQ(frame.data[0], 'B');
+    EXPECT_EQ(frame.data[1], 'M');
+
+    // row_stride: ((4*2+3)/4)*4 = 8 (パディングなし)
+    uint32_t row_stride = ((w * 2 + 3) / 4) * 4;
+    uint32_t expected_file_size = BMP_HDR + row_stride * h;
+    EXPECT_EQ(frame.data.size(), expected_file_size);
+
+    // ファイルサイズフィールド (offset 2, 4 bytes LE)
+    uint32_t file_size_field;
+    memcpy(&file_size_field, &frame.data[2], 4);
+    EXPECT_EQ(file_size_field, expected_file_size);
+
+    // データオフセット (offset 10, 4 bytes LE)
+    uint32_t data_offset;
+    memcpy(&data_offset, &frame.data[10], 4);
+    EXPECT_EQ(data_offset, (uint32_t)BMP_HDR);
+
+    // bpp (offset 28, 2 bytes LE)
+    uint16_t bpp;
+    memcpy(&bpp, &frame.data[28], 2);
+    EXPECT_EQ(bpp, 16);
+
+    // ピクセルデータが BMP_HDR 以降に含まれている
+    // 行0のピクセルデータを確認
+    for (size_t i = 0; i < w * 2; i++) {
+        EXPECT_EQ(frame.data[BMP_HDR + i], pixels[i])
+            << "Mismatch at pixel byte " << i;
+    }
+}
+
+// 4-1c: Grayscale → PGM 変換の検証
+TEST_F(ReassemblerTest, PgmHeaderGrayscale)
+{
+    // 4x2 の Grayscale 画像 = 8 bytes
+    const uint16_t w = 4, h = 2;
+    std::vector<uint8_t> pixels(w * h);
+    std::iota(pixels.begin(), pixels.end(), 100);
+
+    cast_send_frame(pixels.data(), pixels.size(), CAST_FMT_GRAYSCALE, w, h, &g_mock_transport);
+    feed_all_packets();
+
+    ASSERT_EQ(g_completed_frames.size(), 1u);
+    auto &frame = g_completed_frames[0];
+
+    // PGM ヘッダ: "P5\n4 2\n255\n" = 12 bytes
+    std::string expected_hdr = "P5\n4 2\n255\n";
+    ASSERT_GE(frame.data.size(), expected_hdr.size() + pixels.size());
+
+    // ヘッダ部分の一致
+    std::string actual_hdr(frame.data.begin(), frame.data.begin() + expected_hdr.size());
+    EXPECT_EQ(actual_hdr, expected_hdr);
+
+    // ピクセルデータの一致
+    size_t offset = expected_hdr.size();
+    for (size_t i = 0; i < pixels.size(); i++) {
+        EXPECT_EQ(frame.data[offset + i], pixels[i])
+            << "Mismatch at pixel byte " << i;
+    }
+
+    // 全体サイズ
+    EXPECT_EQ(frame.data.size(), expected_hdr.size() + pixels.size());
 }
 
 // 4-2: 最終サイズの完全一致（連番データ）
