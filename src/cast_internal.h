@@ -41,6 +41,8 @@ typedef struct {
     uint16_t    chunk_index;    // チャンク番号、または応答対象のチャンク番号
     uint16_t    total_chunks;   // 総チャンク数、または制御用パラメータ
     uint16_t    max_payload;    // 送信側が分割に使用した1チャンクの最大サイズ
+    uint16_t    width;          // 画像の幅(px)。JPEGでは0可
+    uint16_t    height;         // 画像の高さ(px)。JPEGでは0可
     uint16_t    payload_len;    // このパケットに含まれるデータ長(DATA以外では通常0)
     /* @note この後に最大MTU-2のサイズとなるまで実際のデータが入る */
 } __attribute__((packed)) cast_header_t;

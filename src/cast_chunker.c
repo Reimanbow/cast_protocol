@@ -11,6 +11,8 @@ esp_err_t cast_send_frame(
     const uint8_t *data,
     size_t len,
     cast_image_format_t fmt,
+    uint16_t width,
+    uint16_t height,
     cast_transport_interface_t *transport
 ) {
     static uint16_t frame_counter = 0;
@@ -39,6 +41,8 @@ esp_err_t cast_send_frame(
         header->chunk_index = i;
         header->total_chunks = total_chunks;
         header->max_payload = (uint16_t)max_payload;
+        header->width = width;
+        header->height = height;
         header->payload_len = (uint16_t)current_payload_len;
         
         // 2. データのコピー(ヘッダの直後へ)

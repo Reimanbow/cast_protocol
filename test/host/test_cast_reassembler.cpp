@@ -52,15 +52,19 @@ static cast_transport_interface_t g_mock_transport = {
 struct CapturedFrame {
     std::vector<uint8_t> data;
     cast_image_format_t fmt;
+    uint16_t width;
+    uint16_t height;
 };
 
 static std::vector<CapturedFrame> g_completed_frames;
 
-static void on_frame_ready(const uint8_t *data, size_t len, cast_image_format_t fmt)
+static void on_frame_ready(const uint8_t *data, size_t len, cast_image_format_t fmt, uint16_t width, uint16_t height)
 {
     CapturedFrame f;
     f.data.assign(data, data + len);
     f.fmt = fmt;
+    f.width = width;
+    f.height = height;
     g_completed_frames.push_back(std::move(f));
 }
 
@@ -121,7 +125,7 @@ protected:
 TEST_F(ReassemblerTest, LoopbackMinimal)
 {
     uint8_t data[] = {0x42};
-    cast_send_frame(data, 1, CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data, 1, CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     ASSERT_EQ(g_captured_packets.size(), 1u);
 
     feed_all_packets();
@@ -138,7 +142,7 @@ TEST_F(ReassemblerTest, LoopbackExactMtu)
     std::vector<uint8_t> data(max_payload);
     std::iota(data.begin(), data.end(), 0);
 
-    cast_send_frame(data.data(), data.size(), CAST_FMT_RGB565, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_RGB565, 320, 240, &g_mock_transport);
     ASSERT_EQ(g_captured_packets.size(), 1u);
 
     feed_all_packets();
@@ -154,7 +158,7 @@ TEST_F(ReassemblerTest, LoopbackMtuPlusOne)
     std::vector<uint8_t> data(max_payload + 1);
     std::iota(data.begin(), data.end(), 0);
 
-    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     ASSERT_EQ(g_captured_packets.size(), 2u);
 
     feed_all_packets();
@@ -169,7 +173,7 @@ TEST_F(ReassemblerTest, LoopbackJpeg16x16)
     auto jpeg = read_file(std::string(TEST_DATA_DIR) + "/placeholder_jp_16x16.jpg");
     ASSERT_FALSE(jpeg.empty());
 
-    cast_send_frame(jpeg.data(), jpeg.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(jpeg.data(), jpeg.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     feed_all_packets();
 
     ASSERT_EQ(g_completed_frames.size(), 1u);
@@ -184,7 +188,7 @@ TEST_F(ReassemblerTest, LoopbackJpeg200x200)
     auto jpeg = read_file(std::string(TEST_DATA_DIR) + "/placeholder_jp_200x200.jpg");
     ASSERT_FALSE(jpeg.empty());
 
-    cast_send_frame(jpeg.data(), jpeg.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(jpeg.data(), jpeg.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     feed_all_packets();
 
     ASSERT_EQ(g_completed_frames.size(), 1u);
@@ -202,7 +206,7 @@ TEST_F(ReassemblerTest, LoopbackJpeg640x480_LargeMtu)
     auto jpeg = read_file(std::string(TEST_DATA_DIR) + "/placeholder_jp_640x480.jpg");
     ASSERT_FALSE(jpeg.empty());
 
-    cast_send_frame(jpeg.data(), jpeg.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(jpeg.data(), jpeg.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     feed_all_packets();
 
     ASSERT_EQ(g_completed_frames.size(), 1u);
@@ -221,7 +225,7 @@ TEST_F(ReassemblerTest, ReverseOrder)
     std::vector<uint8_t> data(max_payload * 2 + 10);
     std::iota(data.begin(), data.end(), 0);
 
-    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     ASSERT_EQ(g_captured_packets.size(), 3u);
 
     // 逆順: [2] → [1] → [0]
@@ -237,7 +241,7 @@ TEST_F(ReassemblerTest, RandomOrder)
     auto jpeg = read_file(std::string(TEST_DATA_DIR) + "/placeholder_jp_200x200.jpg");
     ASSERT_FALSE(jpeg.empty());
 
-    cast_send_frame(jpeg.data(), jpeg.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(jpeg.data(), jpeg.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     size_t n = g_captured_packets.size();
     ASSERT_GT(n, 2u);
 
@@ -269,7 +273,7 @@ TEST_F(ReassemblerTest, FrameIdSwitchResetsState)
     std::iota(data2.begin(), data2.end(), 100);
 
     // フレーム1を送信（3チャンク）
-    cast_send_frame(data1.data(), data1.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data1.data(), data1.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     size_t frame1_count = g_captured_packets.size();
 
     // フレーム1のチャンク0だけ投入（未完成）
@@ -278,7 +282,7 @@ TEST_F(ReassemblerTest, FrameIdSwitchResetsState)
 
     // フレーム2を送信
     g_captured_packets.clear();
-    cast_send_frame(data2.data(), data2.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data2.data(), data2.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
 
     // フレーム2の全チャンクを投入 → フレーム1がリセットされフレーム2が完成
     feed_all_packets();
@@ -302,7 +306,7 @@ TEST_F(ReassemblerTest, WrongMagicIgnored)
     const size_t max_payload = g_mock_mtu - CAST_PROTOCOL_OVERHEAD;
     std::vector<uint8_t> data(10, 0xAA);
 
-    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     ASSERT_EQ(g_captured_packets.size(), 1u);
 
     // magicバイトを壊す
@@ -320,7 +324,7 @@ TEST_F(ReassemblerTest, OutOfBoundsChunkIndexIgnored)
     std::vector<uint8_t> data(max_payload * 2 + 1);
     std::iota(data.begin(), data.end(), 0);
 
-    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     ASSERT_EQ(g_captured_packets.size(), 3u);
 
     // チャンク0を投入（フレーム初期化）
@@ -350,26 +354,32 @@ TEST_F(ReassemblerTest, FormatPropagation)
     std::vector<uint8_t> data(50, 0x11);
 
     // JPEG
-    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     feed_all_packets();
     ASSERT_EQ(g_completed_frames.size(), 1u);
     EXPECT_EQ(g_completed_frames[0].fmt, CAST_FMT_JPEG);
+    EXPECT_EQ(g_completed_frames[0].width, 0);
+    EXPECT_EQ(g_completed_frames[0].height, 0);
 
     // RGB565
     g_captured_packets.clear();
     g_completed_frames.clear();
-    cast_send_frame(data.data(), data.size(), CAST_FMT_RGB565, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_RGB565, 320, 240, &g_mock_transport);
     feed_all_packets();
     ASSERT_EQ(g_completed_frames.size(), 1u);
     EXPECT_EQ(g_completed_frames[0].fmt, CAST_FMT_RGB565);
+    EXPECT_EQ(g_completed_frames[0].width, 320);
+    EXPECT_EQ(g_completed_frames[0].height, 240);
 
     // GRAYSCALE
     g_captured_packets.clear();
     g_completed_frames.clear();
-    cast_send_frame(data.data(), data.size(), CAST_FMT_GRAYSCALE, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_GRAYSCALE, 160, 120, &g_mock_transport);
     feed_all_packets();
     ASSERT_EQ(g_completed_frames.size(), 1u);
     EXPECT_EQ(g_completed_frames[0].fmt, CAST_FMT_GRAYSCALE);
+    EXPECT_EQ(g_completed_frames[0].width, 160);
+    EXPECT_EQ(g_completed_frames[0].height, 120);
 }
 
 // 4-2: 最終サイズの完全一致（連番データ）
@@ -380,7 +390,7 @@ TEST_F(ReassemblerTest, FinalSizeExact)
     std::vector<uint8_t> data(max_payload * 3 + 7);
     std::iota(data.begin(), data.end(), 0);
 
-    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     feed_all_packets();
 
     ASSERT_EQ(g_completed_frames.size(), 1u);
@@ -395,7 +405,7 @@ TEST_F(ReassemblerTest, FinalSizeExactReverseOrder)
     std::vector<uint8_t> data(max_payload * 3 + 7);
     std::iota(data.begin(), data.end(), 0);
 
-    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     size_t n = g_captured_packets.size();
 
     // 逆順投入
