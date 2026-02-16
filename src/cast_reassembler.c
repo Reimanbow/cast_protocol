@@ -21,6 +21,8 @@ typedef struct {
     uint16_t max_payload_ref;   // オフセット計算の基準値
     uint16_t last_chunk_len;    // 最終チャンクのペイロード長
     cast_image_format_t format; // 画像フォーマット
+    uint16_t width;             // 画像の幅(px)
+    uint16_t height;            // 画像の高さ(px)
     bool is_active;
 } cast_reassembler_ctx_t;
 
@@ -76,6 +78,8 @@ static void cast_reassembler_push_packet(const uint8_t *data, size_t len) {
         ctx.total_chunks = header->total_chunks;
         ctx.max_payload_ref = header->max_payload;
         ctx.format = (cast_image_format_t)header->format;
+        ctx.width = header->width;
+        ctx.height = header->height;
         ctx.chunks_received = 0;
         ctx.is_active = true;
     }
@@ -97,7 +101,7 @@ static void cast_reassembler_push_packet(const uint8_t *data, size_t len) {
     if (ctx.chunks_received == ctx.total_chunks) {
         if (app_callback) {
             size_t final_size = (ctx.total_chunks - 1) * ctx.max_payload_ref + ctx.last_chunk_len;
-            app_callback(ctx.buffer, final_size, ctx.format);
+            app_callback(ctx.buffer, final_size, ctx.format, ctx.width, ctx.height);
         }
 
         // callback から戻ったらミドルウェア側で解放

@@ -30,6 +30,8 @@ typedef enum {
  * @param data 送信するデータのポインタ
  * @param len データ長
  * @param fmt 画像のフォーマット
+ * @param width 画像の幅(px)。JPEGでは0可
+ * @param height 画像の高さ(px)。JPEGでは0可
  * @param transport 無線規格の振る舞い
  * @return esp_err_t 送信成否(ESP_OK, ESP_FAILなど)
  */
@@ -37,14 +39,21 @@ esp_err_t cast_send_frame(
     const uint8_t *data,
     size_t len,
     cast_image_format_t fmt,
+    uint16_t width,
+    uint16_t height,
     cast_transport_interface_t *transport
 );
 
 /**
  * @brief 画像が完成したときに呼ばれる関数の型
  * @note dataはcallbackから戻った後にミドルウェアが解放する。保持する場合はコピーすること。
+ * @param data 復元された画像データ
+ * @param len データ長
+ * @param fmt 画像フォーマット
+ * @param width 画像の幅(px)
+ * @param height 画像の高さ(px)
  */
-typedef void (*cast_on_frame_ready_t)(const uint8_t *data, size_t len, cast_image_format_t fmt);
+typedef void (*cast_on_frame_ready_t)(const uint8_t *data, size_t len, cast_image_format_t fmt, uint16_t width, uint16_t height);
 
 /**
  * @brief 受信側の初期化

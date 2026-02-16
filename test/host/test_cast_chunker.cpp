@@ -95,7 +95,7 @@ TEST_F(ChunkerTest, ExactFitChunkCount)
     const size_t data_len = max_payload * 2;
     std::vector<uint8_t> data(data_len, 0xAA);
 
-    esp_err_t ret = cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    esp_err_t ret = cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
 
     EXPECT_EQ(ret, ESP_OK);
     EXPECT_EQ(g_captured_packets.size(), 2u);
@@ -108,7 +108,7 @@ TEST_F(ChunkerTest, PartialLastChunkCount)
     // max_payload + 1 バイトで確実に2チャンク
     std::vector<uint8_t> data(max_payload + 1, 0xBB);
 
-    esp_err_t ret = cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    esp_err_t ret = cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
 
     EXPECT_EQ(ret, ESP_OK);
     EXPECT_EQ(g_captured_packets.size(), 2u);
@@ -119,7 +119,7 @@ TEST_F(ChunkerTest, SingleChunk)
 {
     std::vector<uint8_t> data(10, 0xCC);
 
-    esp_err_t ret = cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    esp_err_t ret = cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
 
     EXPECT_EQ(ret, ESP_OK);
     EXPECT_EQ(g_captured_packets.size(), 1u);
@@ -132,7 +132,7 @@ TEST_F(ChunkerTest, ThreeChunks)
     const size_t data_len = max_payload * 2 + 1; // 確実に3チャンク
     std::vector<uint8_t> data(data_len, 0xDD);
 
-    esp_err_t ret = cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    esp_err_t ret = cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
 
     EXPECT_EQ(ret, ESP_OK);
     EXPECT_EQ(g_captured_packets.size(), 3u);
@@ -148,7 +148,7 @@ TEST_F(ChunkerTest, HeaderConsistency)
     const size_t data_len = max_payload * 2 + 1; // 3チャンク
     std::vector<uint8_t> data(data_len, 0x00);
 
-    cast_send_frame(data.data(), data.size(), CAST_FMT_RGB565, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_RGB565, 320, 240, &g_mock_transport);
 
     ASSERT_EQ(g_captured_packets.size(), 3u);
 
@@ -189,6 +189,14 @@ TEST_F(ChunkerTest, HeaderConsistency)
     EXPECT_EQ(h0->max_payload, max_payload);
     EXPECT_EQ(h1->max_payload, max_payload);
     EXPECT_EQ(h2->max_payload, max_payload);
+
+    // width/height は全パケットで同じ値
+    EXPECT_EQ(h0->width, 320);
+    EXPECT_EQ(h1->width, 320);
+    EXPECT_EQ(h2->width, 320);
+    EXPECT_EQ(h0->height, 240);
+    EXPECT_EQ(h1->height, 240);
+    EXPECT_EQ(h2->height, 240);
 }
 
 // ===========================================================================
@@ -206,7 +214,7 @@ TEST_F(ChunkerTest, PayloadBoundary)
         data[i] = (uint8_t)(i & 0xFF);
     }
 
-    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
 
     ASSERT_EQ(g_captured_packets.size(), 3u);
 
@@ -251,13 +259,13 @@ TEST_F(ChunkerTest, FrameIdIncrements)
     std::vector<uint8_t> data(10, 0xFF);
 
     // 1回目
-    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     ASSERT_EQ(g_captured_packets.size(), 1u);
     uint16_t frame_id_1 = packet_header(0)->frame_id;
 
     // 2回目
     g_captured_packets.clear();
-    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
     ASSERT_EQ(g_captured_packets.size(), 1u);
     uint16_t frame_id_2 = packet_header(0)->frame_id;
 
@@ -275,7 +283,7 @@ TEST_F(ChunkerTest, SendFailureMidway)
     std::vector<uint8_t> data(max_payload * 2 + 1, 0xEE); // 3チャンク
     g_send_fail_at = 1; // 2番目(index=1)のsendで失敗
 
-    esp_err_t ret = cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    esp_err_t ret = cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
 
     EXPECT_EQ(ret, ESP_FAIL);
     // 1番目のパケットだけキャプチャされている(2番目で失敗したのでpushされない)
@@ -288,7 +296,7 @@ TEST_F(ChunkerTest, SendFailureOnFirst)
     std::vector<uint8_t> data(10, 0x00);
     g_send_fail_at = 0;
 
-    esp_err_t ret = cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    esp_err_t ret = cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
 
     EXPECT_EQ(ret, ESP_FAIL);
     EXPECT_EQ(g_captured_packets.size(), 0u);
@@ -302,7 +310,7 @@ TEST_F(ChunkerTest, PacketSizeNeverExceedsMtu)
 {
     std::vector<uint8_t> data(500, 0x42);
 
-    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
 
     for (size_t i = 0; i < g_captured_packets.size(); i++) {
         EXPECT_LE(g_captured_packets[i].size(), g_mock_mtu)
@@ -320,7 +328,7 @@ TEST_F(ChunkerTest, SmallMtu)
     const size_t max_payload = calc_max_payload();
     std::vector<uint8_t> data(50, 0x11);
 
-    cast_send_frame(data.data(), data.size(), CAST_FMT_GRAYSCALE, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_GRAYSCALE, 320, 240, &g_mock_transport);
 
     size_t expected_chunks = calc_expected_chunks(50);
     EXPECT_EQ(g_captured_packets.size(), expected_chunks);
@@ -337,7 +345,7 @@ TEST_F(ChunkerTest, LargeMtu)
     const size_t max_payload = calc_max_payload();
     std::vector<uint8_t> data(200, 0x22);
 
-    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, &g_mock_transport);
+    cast_send_frame(data.data(), data.size(), CAST_FMT_JPEG, 0, 0, &g_mock_transport);
 
     // 200 < max_payload → 1チャンク
     EXPECT_EQ(g_captured_packets.size(), 1u);
